@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,8 +23,6 @@ type Config struct {
 }
 
 var (
-	containerName = ""
-	URL           = ""
 	RESOURCE_TYPE = "b"
 	PERMISSION    = "r"
 	API_VERSION   = "2014-02-14"
@@ -144,13 +141,4 @@ func DeleteImage(ctx context.Context, filePath string, c Config) (string, error)
 	}
 
 	return GetBlobURL(filePath, false, c), nil
-}
-
-func UnixNano() string {
-	return strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-}
-
-func TimebasePath() string {
-	now := time.Now()
-	return fmt.Sprintf("%s/%s/%s", now.Format("2006"), now.Format("01"), now.Format("02"))
 }
