@@ -12,38 +12,40 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ndv6/goconf"
+
 	"github.com/Azure/azure-storage-blob-go/azblob"
-)
-
-type Config struct {
-	Account       string
-	AccessKey     string
-	RootURL       string
-	ContainerName string
-}
-
-var (
-	RESOURCE_TYPE = "b"
-	PERMISSION    = "r"
-	API_VERSION   = "2014-02-14"
 )
 
 const (
 	ExpireTime = 3600
 )
 
-func GetURL(c Config) string {
-	return fmt.Sprintf(c.RootURL, c.Account, c.ContainerName)
+var (
+	Account       = goconf.GetString("azure.storage.account")
+	AccessKey     = goconf.GetString("azure.storage.access_key")
+	RootURL       = goconf.GetString("azure.storage.blob_url")
+	ContainerName = goconf.GetString("azure.storage.container_name")
+
+	containerName = ""
+	URL           = ""
+	RESOURCE_TYPE = "b"
+	PERMISSION    = "r"
+	API_VERSION   = "2014-02-14"
+)
+
+func GetURL() string {
+	return fmt.Sprintf(RootURL, Account, ContainerName)
 }
 
-func GetContainer(c Config) (azblob.ContainerURL, error) {
-	credential, err := azblob.NewSharedKeyCredential(c.Account, c.AccessKey)
+func GetContainer() (azblob.ContainerURL, error) {
+	credential, err := azblob.NewSharedKeyCredential(Account, AccessKey)
 	if err != nil {
 		return azblob.ContainerURL{}, err
 	}
 
 	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
-	URL, err := url.Parse(GetURL(c))
+	URL, err := url.Parse(GetURL())
 	if err != nil {
 		return azblob.ContainerURL{}, err
 	}
@@ -53,18 +55,18 @@ func GetContainer(c Config) (azblob.ContainerURL, error) {
 	return containerURL, nil
 }
 
-func GetBlobURL(fileName string, withSignature bool, c Config) string {
+func GetBlobURL(fileName string, withSignature bool) string {
 	if fileName == "" {
 		return fileName
 	}
 
 	if !withSignature {
-		return fmt.Sprintf("%s/%s", GetURL(c), fileName)
+		return fmt.Sprintf("%s/%s", GetURL(), fileName)
 	}
 
 	timeIn := time.Now().Add(time.Second * ExpireTime)
 	expiryTime := timeIn.Format("2006-01-02T15:04:05Z")
-	sig := GenerateSharedAccessSignature(expiryTime, fileName, c)
+	sig := GenerateSharedAccessSignature(expiryTime, fileName)
 
 	queryParams := []string{
 		"se=" + url.QueryEscape(expiryTime),
@@ -74,19 +76,19 @@ func GetBlobURL(fileName string, withSignature bool, c Config) string {
 		"sv=" + url.QueryEscape(API_VERSION),
 	}
 
-	return fmt.Sprintf("%s/%s?%s", GetURL(c), fileName, strings.Join(queryParams, "&"))
+	return fmt.Sprintf("%s/%s?%s", GetURL(), fileName, strings.Join(queryParams, "&"))
 }
 
-func GetFileName(blobUrl string, c Config) string {
+func GetFileName(blobUrl string) string {
 	u, err := url.Parse(blobUrl)
 	if err != nil {
 		return blobUrl
 	}
-	return strings.TrimPrefix(u.Path, "/"+c.ContainerName+"/")
+	return strings.TrimPrefix(u.Path, "/"+ContainerName+"/")
 }
 
-func GenerateSharedAccessSignature(expiryTime string, fileName string, c Config) string {
-	blob := fmt.Sprintf("/%s/%s/%s", c.Account, c.ContainerName, fileName)
+func GenerateSharedAccessSignature(expiryTime string, fileName string) string {
+	blob := fmt.Sprintf("/%s/%s/%s", Account, ContainerName, fileName)
 
 	queryParams := []string{
 		PERMISSION, // permissions
@@ -97,7 +99,7 @@ func GenerateSharedAccessSignature(expiryTime string, fileName string, c Config)
 		API_VERSION, // API version
 		"", "", "", "", ""}
 	toSign := strings.Join(queryParams, "\n")
-	decodeAccessKey, _ := base64.StdEncoding.DecodeString(c.AccessKey)
+	decodeAccessKey, _ := base64.StdEncoding.DecodeString(AccessKey)
 
 	h := hmac.New(sha256.New, []byte(decodeAccessKey))
 	h.Write([]byte(toSign))
@@ -105,8 +107,8 @@ func GenerateSharedAccessSignature(expiryTime string, fileName string, c Config)
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
-func Upload(ctx context.Context, filePath string, buffBytes []byte, c Config) (string, error) {
-	containerURL, err := GetContainer(c)
+func Upload(ctx context.Context, filePath string, buffBytes []byte) (string, error) {
+	containerURL, err := GetContainer()
 	if err != nil {
 		return "", err
 	}
@@ -122,11 +124,11 @@ func Upload(ctx context.Context, filePath string, buffBytes []byte, c Config) (s
 		return "", err
 	}
 
-	return GetBlobURL(filePath, false, c), nil
+	return GetBlobURL(filePath, false), nil
 }
 
-func DeleteImage(ctx context.Context, filePath string, c Config) (string, error) {
-	containerURL, err := GetContainer(c)
+func Delete(ctx context.Context, filePath string) (string, error) {
+	containerURL, err := GetContainer()
 	if err != nil {
 		return "", err
 	}
@@ -140,5 +142,5 @@ func DeleteImage(ctx context.Context, filePath string, c Config) (string, error)
 		return "", err
 	}
 
-	return GetBlobURL(filePath, false, c), nil
+	return GetBlobURL(filePath, false), nil
 }
