@@ -2,12 +2,26 @@
 Purpose as centralise SDK to handle things related to assets such as image upload, etc
 
 
+
+
 ## File
 Upload and delete file from Azure storage
 
 
 ### Usages
-
+Follow this consul config structure to your project
+```
+{
+    "azure": {
+        "storage": {
+            "account": "",
+            "access_key": "",
+            "container_name": "",
+            "blob_url": ""
+        }
+    }
+}
+```
 
 #### func Upload
     func Upload(ctx context.Context, filePath string, buffBytes []byte) (string, error)
