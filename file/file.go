@@ -12,36 +12,79 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ndv6/goconf"
-
 	"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
 const (
-	ExpireTime = 3600
+	ExpireTime   = 3600
+	ResourceType = "b"
+	Permission   = "r"
 )
 
-var (
-	Account       = goconf.GetString("azure.storage.account")
-	AccessKey     = goconf.GetString("azure.storage.access_key")
-	RootURL       = goconf.GetString("azure.storage.blob_url")
-	ContainerName = goconf.GetString("azure.storage.container_name")
+type Config struct {
+	Account       string
+	AccessKey     string
+	RootURL       string
+	ContainerName string
+	APIVersion    string
+}
 
-	containerName = ""
-	URL           = ""
-	RESOURCE_TYPE = "b"
-	PERMISSION    = "r"
-	API_VERSION   = "2014-02-14"
-)
+var config Config
+
+//SetConfig set account, access key, root url, container name, api version before using this library
+//Call this function at init()
+//
+//	Example:
+//		file.SetConfig(
+//		goconf.GetString("azure.storage.account"),
+//		goconf.GetString("azure.storage.access_key"),
+//		goconf.GetString("azure.storage.blob_url"),
+//		goconf.GetString("azure.storage.container_name"),
+//		goconf.GetString("azure.storage.api_version"))
+//
+func SetConfig(account, accessKey, rootURL, containerName, apiVersion string) {
+	config = Config{
+		Account:       account,
+		AccessKey:     accessKey,
+		RootURL:       rootURL,
+		ContainerName: containerName,
+		APIVersion:    apiVersion,
+	}
+}
 
 // GetURL return string with blob_url, account and container name
 func GetURL() string {
-	return fmt.Sprintf(RootURL, Account, ContainerName)
+	return fmt.Sprintf(GetRootURL(), GetAccount(), GetContainerName())
+}
+
+//GetAccount return Account config
+func GetAccount() string {
+	return config.Account
+}
+
+//GetAccessKey return Access Key config
+func GetAccessKey() string {
+	return config.AccessKey
+}
+
+//GetRootURL return root URL config
+func GetRootURL() string {
+	return config.RootURL
+}
+
+//GetContainerName return Container Name config
+func GetContainerName() string {
+	return config.ContainerName
+}
+
+//GetAPIVersion return  API Version config
+func GetAPIVersion() string {
+	return config.APIVersion
 }
 
 //GetContainer return container URL
 func GetContainer() (azblob.ContainerURL, error) {
-	credential, err := azblob.NewSharedKeyCredential(Account, AccessKey)
+	credential, err := azblob.NewSharedKeyCredential(GetAccount(), GetAccessKey())
 	if err != nil {
 		return azblob.ContainerURL{}, err
 	}
@@ -82,10 +125,10 @@ func GetBlobURL(fileName string, withSignature bool) string {
 
 	queryParams := []string{
 		"se=" + url.QueryEscape(expiryTime),
-		"sr=" + RESOURCE_TYPE,
-		"sp=" + PERMISSION,
+		"sr=" + ResourceType,
+		"sp=" + Permission,
 		"sig=" + url.QueryEscape(sig),
-		"sv=" + url.QueryEscape(API_VERSION),
+		"sv=" + url.QueryEscape(GetAPIVersion()),
 	}
 
 	return fmt.Sprintf("%s/%s?%s", GetURL(), fileName, strings.Join(queryParams, "&"))
@@ -102,23 +145,23 @@ func GetFileName(blobUrl string) string {
 	if err != nil {
 		return blobUrl
 	}
-	return strings.TrimPrefix(u.Path, "/"+ContainerName+"/")
+	return strings.TrimPrefix(u.Path, "/"+GetContainerName()+"/")
 }
 
 //GenerateSharedAccessSignature return access signature key
 func GenerateSharedAccessSignature(expiryTime string, fileName string) string {
-	blob := fmt.Sprintf("/%s/%s/%s", Account, ContainerName, fileName)
+	blob := fmt.Sprintf("/%s/%s/%s", GetAccount(), GetContainerName(), fileName)
 
 	queryParams := []string{
-		PERMISSION, // permissions
+		Permission, // permissions
 		"",
 		expiryTime, // expiry
 		blob,
 		"",
-		API_VERSION, // API version
+		GetAPIVersion(), // API version
 		"", "", "", "", ""}
 	toSign := strings.Join(queryParams, "\n")
-	decodeAccessKey, _ := base64.StdEncoding.DecodeString(AccessKey)
+	decodeAccessKey, _ := base64.StdEncoding.DecodeString(GetAccessKey())
 
 	h := hmac.New(sha256.New, []byte(decodeAccessKey))
 	h.Write([]byte(toSign))
