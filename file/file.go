@@ -21,14 +21,14 @@ const (
 	Permission   = "r"
 )
 
-type LibFile interface {
+type IFile interface {
 	Upload(ctx context.Context, filePath string, buffBytes []byte) (string, error)
 	Delete(ctx context.Context, filePath string) (string, error)
 	GetBlobURL(fileName string, withSignature bool) string
 	GetFileName(blobUrl string) string
 	GetURL() string
 	GetContainer() (azblob.ContainerURL, error)
-	GenerateSharedAccessSignature(expiryTime string, fileName string)
+	GenerateSharedAccessSignature(expiryTime string, fileName string) string
 }
 
 type File struct {
@@ -40,7 +40,7 @@ type File struct {
 }
 
 //New set account, access key, root url, container name, api version before using this library
-func New(account, accessKey, rootURL, containerName, apiVersion string) *File {
+func New(account, accessKey, rootURL, containerName, apiVersion string) IFile {
 	return &File{
 		Account:       account,
 		AccessKey:     accessKey,
