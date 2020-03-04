@@ -10,9 +10,9 @@ Upload and delete file from Azure storage
 
 ## Usages
 ### Initialization
-Set Azure configuration first from your project before call other function
+Set Azure configuration first
 
-    func SetConfig(account, accessKey, rootURL, containerName, apiVersion string)
+    func New(account, accessKey, rootURL, containerName, apiVersion string)
 
 ## Function
 ### func Upload
