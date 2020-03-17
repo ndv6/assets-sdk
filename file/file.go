@@ -22,7 +22,7 @@ const (
 )
 
 type IFile interface {
-	Upload(ctx context.Context, filePath string, buffBytes []byte) (string, error)
+	Upload(ctx context.Context, filePath, contentType string, buffBytes []byte) (string, error)
 	Delete(ctx context.Context, filePath string) (string, error)
 	GetBlobURL(fileName string, withSignature bool) string
 	GetFileName(blobUrl string) string
@@ -146,13 +146,15 @@ func (c *File) GenerateSharedAccessSignature(expiryTime string, fileName string)
 //
 //	Example:
 //	file := file.Upload(ctx, "/file/image.img", buffBytes)
-func (c *File) Upload(ctx context.Context, filePath string, buffBytes []byte) (string, error) {
+func (c *File) Upload(ctx context.Context, filePath, contentType string, buffBytes []byte) (string, error) {
 	containerURL, err := c.GetContainer()
 	if err != nil {
 		return "", err
 	}
 	blobURL := containerURL.NewBlockBlobURL(filePath)
-	contentType := http.DetectContentType(buffBytes)
+	if contentType == "" {
+		contentType = http.DetectContentType(buffBytes)
+	}
 
 	_, err = blobURL.Upload(ctx,
 		bytes.NewReader(buffBytes),
