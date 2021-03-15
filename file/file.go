@@ -29,6 +29,7 @@ type IFile interface {
 	GetURL() string
 	GetContainer() (azblob.ContainerURL, error)
 	GenerateSharedAccessSignature(expiryTime string, fileName string) string
+	GetListBlob(ctx context.Context, prefix string) (list []string)
 }
 
 type File struct {
@@ -188,4 +189,29 @@ func (c *File) Delete(ctx context.Context, filePath string) (string, error) {
 	}
 
 	return c.GetBlobURL(filePath, false), nil
+}
+
+func (c *File) GetListBlob(ctx context.Context, prefix string) (list []string, err error) {
+	containerURL, err := c.GetContainer()
+	if err != nil {
+		return
+	}
+
+	// List the blob(s) in our container; since a container may hold millions of blobs, this is done 1 segment at a time.
+	for marker := (azblob.Marker{}); marker.NotDone(); { // The parens around Marker{} are required to avoid compiler error.
+		listBlob, err := containerURL.ListBlobsFlatSegment(ctx, marker, azblob.ListBlobsSegmentOptions{Prefix: prefix})
+		if err != nil {
+			return
+		}
+		// IMPORTANT: ListBlobs returns the start of the next segment; you MUST use this to get
+		// the next segment (after processing the current result segment).
+		marker = listBlob.NextMarker
+
+		// Process the blobs returned in this result segment (if the segment is empty, the loop body won't execute)
+		for _, blobInfo := range listBlob.Segment.BlobItems {
+			list = append(list, blobInfo.Name)
+		}
+	}
+	
+	return
 }
