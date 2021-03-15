@@ -29,7 +29,7 @@ type IFile interface {
 	GetURL() string
 	GetContainer() (azblob.ContainerURL, error)
 	GenerateSharedAccessSignature(expiryTime string, fileName string) string
-	GetListBlob(ctx context.Context, prefix string) (list []string)
+	GetListBlob(ctx context.Context, prefix string) (list []string, err error)
 }
 
 type File struct {
@@ -212,6 +212,6 @@ func (c *File) GetListBlob(ctx context.Context, prefix string) (list []string, e
 			list = append(list, blobInfo.Name)
 		}
 	}
-	
+
 	return
 }
