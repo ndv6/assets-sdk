@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"github.com/pkg/errors"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 )
@@ -32,7 +33,7 @@ type IFile interface {
 	GenerateSharedAccessSignature(expiryTime string, fileName string) string
 	GetListBlob(ctx context.Context, prefix string) (list []string, err error)
 	Download(ctx context.Context, filePath string) ([]byte, error)
-	Copy(ctx context.Context, filePath string) error
+	Copy(ctx context.Context, newPath, tempPath string) error
 }
 
 type File struct {
@@ -237,7 +238,7 @@ func (c *File) Download(ctx context.Context, filePath string) (file []byte, err 
 	return ioutil.ReadAll(reader)
 }
 
-func (c *File) Copy(ctx context.Context, filePath string) error {
+func (c *File) Copy(ctx context.Context, newPath, tempPath string) error {
 	containerURL, err := c.GetContainer()
 	if err != nil {
 		return err
@@ -248,7 +249,10 @@ func (c *File) Copy(ctx context.Context, filePath string) error {
 	if err != nil {
 		return err
 	}
+
 	if res.StatusCode() >= 300 {
 		return errors.New("failed to copy data")
 	}
+
+	return nil
 }
