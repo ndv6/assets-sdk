@@ -7,10 +7,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+	"github.com/pkg/errors"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 )
@@ -30,6 +32,8 @@ type IFile interface {
 	GetContainer() (azblob.ContainerURL, error)
 	GenerateSharedAccessSignature(expiryTime string, fileName string) string
 	GetListBlob(ctx context.Context, prefix string) (list []string, err error)
+	Download(ctx context.Context, filePath string) ([]byte, error)
+	Copy(ctx context.Context, newPath, tempPath string) error
 }
 
 type File struct {
@@ -194,14 +198,14 @@ func (c *File) Delete(ctx context.Context, filePath string) (string, error) {
 func (c *File) GetListBlob(ctx context.Context, prefix string) (list []string, err error) {
 	containerURL, err := c.GetContainer()
 	if err != nil {
-		return
+		return list, err
 	}
 
 	// List the blob(s) in our container; since a container may hold millions of blobs, this is done 1 segment at a time.
 	for marker := (azblob.Marker{}); marker.NotDone(); { // The parens around Marker{} are required to avoid compiler error.
 		listBlob, err := containerURL.ListBlobsFlatSegment(ctx, marker, azblob.ListBlobsSegmentOptions{Prefix: prefix})
 		if err != nil {
-			return
+			return list, err
 		}
 		// IMPORTANT: ListBlobs returns the start of the next segment; you MUST use this to get
 		// the next segment (after processing the current result segment).
@@ -214,4 +218,41 @@ func (c *File) GetListBlob(ctx context.Context, prefix string) (list []string, e
 	}
 
 	return
+}
+
+func (c *File) Download(ctx context.Context, filePath string) (file []byte, err error) {
+	containerURL, err := c.GetContainer()
+	if err != nil {
+		return file, err
+	}
+
+	blockBlobURL := containerURL.NewBlockBlobURL(filePath)
+	get, err := blockBlobURL.Download(ctx, 0, 0, azblob.BlobAccessConditions{}, false)
+	if err != nil {
+		return file, err
+	}
+
+	reader := get.Body(azblob.RetryReaderOptions{})
+	_ = reader.Close()
+
+	return ioutil.ReadAll(reader)
+}
+
+func (c *File) Copy(ctx context.Context, newPath, tempPath string) error {
+	containerURL, err := c.GetContainer()
+	if err != nil {
+		return err
+	}
+
+	newBlobURL := containerURL.NewBlockBlobURL(newPath)
+	res, err := newBlobURL.StartCopyFromURL(ctx, containerURL.NewBlobURL(tempPath).URL(), azblob.Metadata{}, azblob.ModifiedAccessConditions{}, azblob.BlobAccessConditions{})
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode() >= 300 {
+		return errors.New("failed to copy data")
+	}
+
+	return nil
 }
