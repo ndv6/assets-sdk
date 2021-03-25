@@ -32,6 +32,7 @@ type IFile interface {
 	GenerateSharedAccessSignature(expiryTime string, fileName string) string
 	GetListBlob(ctx context.Context, prefix string) (list []string, err error)
 	Download(ctx context.Context, filePath string) ([]byte, error)
+	Copy(ctx context.Context, filePath string) error
 }
 
 type File struct {
@@ -234,4 +235,20 @@ func (c *File) Download(ctx context.Context, filePath string) (file []byte, err 
 	_ = reader.Close()
 
 	return ioutil.ReadAll(reader)
+}
+
+func (c *File) Copy(ctx context.Context, filePath string) error {
+	containerURL, err := c.GetContainer()
+	if err != nil {
+		return err
+	}
+
+	newBlobURL := containerURL.NewBlockBlobURL(newPath)
+	res, err := newBlobURL.StartCopyFromURL(ctx, containerURL.NewBlobURL(tempPath).URL(), azblob.Metadata{}, azblob.ModifiedAccessConditions{}, azblob.BlobAccessConditions{})
+	if err != nil {
+		return err
+	}
+	if res.StatusCode() >= 300 {
+		return errors.New("failed to copy data")
+	}
 }
